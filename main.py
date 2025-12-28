@@ -110,4 +110,30 @@ def query_db(req: QueryRequest):
     columns, rows = execute_client_query(client, req.sql)
     return {"columns": columns, "rows": rows, "row_count": len(rows)}
 
+import json
+
+class SchemaResponse(BaseModel):
+    client_id: str
+    tables: list
+    columns: dict
+
+@app.post("/schema")
+def get_schema(client_id: str):
+    client = get_client_config(client_id)
+
+    try:
+        tables = json.loads(client["allowed_tables"] or "[]")
+        columns = json.loads(client["allowed_columns"] or "{}")
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="allowed_tables / allowed_columns inválidos"
+        )
+
+    return {
+        "client_id": client_id,
+        "tables": tables,
+        "columns": columns
+    }
+
 
