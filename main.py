@@ -54,9 +54,20 @@ def execute_client_query(client, sql):
             columns = list(rows[0].keys()) if rows else []
     return columns, rows
 
+def safe_json(value, default):
+    try:
+        if value is None:
+            return default
+        if isinstance(value, (dict, list)):
+            return value
+        return json.loads(value)
+    except Exception:
+        return default
+
 @app.post("/query")
 def query_db(req: QueryRequest):
     validate_sql(req.sql)
     client = get_client_config(req.client_id)
     columns, rows = execute_client_query(client, req.sql)
     return {"columns": columns, "rows": rows, "row_count": len(rows)}
+
