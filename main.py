@@ -35,9 +35,48 @@ def get_client_config(client_id: str):
                 WHERE client_id = %s AND active = 1
             """, (client_id,))
             client = cur.fetchone()
+
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado o inactivo")
+
+    # ==============================
+    # NORMALIZACIÓN DE SCHEMA
+    # ==============================
+
+    raw_tables = client.get("allowed_tables")
+    raw_columns = client.get("allowed_columns")
+
+    try:
+        allowed_tables = (
+            json.loads(raw_tables)
+            if isinstance(raw_tables, str)
+            else raw_tables
+        ) or []
+
+        allowed_columns = (
+            json.loads(raw_columns)
+            if isinstance(raw_columns, str)
+            else raw_columns
+        ) or {}
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="allowed_tables / allowed_columns inválidos"
+        )
+
+    if not allowed_tables:
+        raise HTTPException(
+            status_code=400,
+            detail="Cliente sin schema permitido configurado"
+        )
+
+    # Inyectamos schema ya limpio
+    client["allowed_tables"] = allowed_tables
+    client["allowed_columns"] = allowed_columns
+
     return client
+
 
 def execute_client_query(client, sql):
     conn = pymysql.connect(
@@ -70,4 +109,5 @@ def query_db(req: QueryRequest):
     client = get_client_config(req.client_id)
     columns, rows = execute_client_query(client, req.sql)
     return {"columns": columns, "rows": rows, "row_count": len(rows)}
+
 
