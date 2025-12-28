@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import pymysql
 import os
 import re
+import json
 
 app = FastAPI()
 
@@ -110,7 +111,6 @@ def query_db(req: QueryRequest):
     columns, rows = execute_client_query(client, req.sql)
     return {"columns": columns, "rows": rows, "row_count": len(rows)}
 
-import json
 
 class SchemaResponse(BaseModel):
     client_id: str
@@ -121,19 +121,29 @@ class SchemaResponse(BaseModel):
 def get_schema(client_id: str):
     client = get_client_config(client_id)
 
-    try:
-        tables = json.loads(client["allowed_tables"] or "[]")
-        columns = json.loads(client["allowed_columns"] or "{}")
-    except Exception:
-        raise HTTPException(
-            status_code=500,
-            detail="allowed_tables / allowed_columns inválidos"
-        )
+    def clean_json(value, default):
+        if value is None:
+            return default
+        if isinstance(value, (dict, list)):
+            return value
+        try:
+            return json.loads(value.strip())
+        except Exception as e:
+            print("JSON inválido:", repr(value))
+            raise HTTPException(
+                status_code=500,
+                detail="allowed_tables / allowed_columns inválidos"
+            )
+
+    tables = clean_json(client.get("allowed_tables"), [])
+    columns = clean_json(client.get("allowed_columns"), {})
 
     return {
         "client_id": client_id,
         "tables": tables,
         "columns": columns
     }
+
+
 
 
