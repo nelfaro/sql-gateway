@@ -107,14 +107,22 @@ def execute_client_query(client, sql):
         password=client["db_password"],
         database=client["db_name"],
         cursorclass=pymysql.cursors.DictCursor,
-        ssl=False
+
+        # 🔑 CLAVE PARA EASY PANEL + MYSQL 8
+        ssl_disabled=True,
+        auth_plugin_map={
+            "caching_sha2_password": pymysql.constants.CLIENT.PLUGIN_AUTH
+        }
     )
+
     with conn:
         with conn.cursor() as cur:
             cur.execute(sql)
             rows = cur.fetchall()
             columns = list(rows[0].keys()) if rows else []
+
     return columns, rows
+
 
 def safe_json(value, default):
     try:
@@ -200,6 +208,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
