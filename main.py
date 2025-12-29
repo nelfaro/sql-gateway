@@ -21,13 +21,14 @@ class QueryRequest(BaseModel):
 FORBIDDEN = re.compile(r"(insert|update|delete|drop|alter|truncate|grant|revoke|;)", re.IGNORECASE)
 
 def get_control_connection():
-    return MySQLdb.connect(
+    return pymysql.connect(
         host=CONTROL_DB["host"],
         user=CONTROL_DB["user"],
-        passwd=CONTROL_DB["password"],
-        db=CONTROL_DB["database"],
-        charset="utf8mb4"
+        password=CONTROL_DB["password"],
+        database=CONTROL_DB["database"],
+        cursorclass=pymysql.cursors.DictCursor
     )
+
 
 
 def validate_sql(sql: str):
@@ -72,37 +73,37 @@ def get_client_config(client_id: str):
     # NORMALIZACIÓN DE SCHEMA
     # ==============================
 
-    raw_tables = client.get("allowed_tables")
-    raw_columns = client.get("allowed_columns")
+    #raw_tables = client.get("allowed_tables")
+    #raw_columns = client.get("allowed_columns")
 
-    try:
-        allowed_tables = (
-            json.loads(raw_tables)
-            if isinstance(raw_tables, str)
-            else raw_tables
-        ) or []
+    #try:
+       # allowed_tables = (
+        #    json.loads(raw_tables)
+        #    if isinstance(raw_tables, str)
+        #    else raw_tables
+       # ) or []
 
-        allowed_columns = (
-            json.loads(raw_columns)
-            if isinstance(raw_columns, str)
-            else raw_columns
-        ) or {}
+     #   allowed_columns = (
+     #       json.loads(raw_columns)
+    #        if isinstance(raw_columns, str)
+     #       else raw_columns
+     #   ) or {}
 
-    except Exception:
-        raise HTTPException(
-            status_code=500,
-            detail="allowed_tables / allowed_columns inválidos"
-        )
+    #except Exception:
+    #    raise HTTPException(
+    #        status_code=500,
+    #        detail="allowed_tables / allowed_columns inválidos"
+    #    )
 
-    if not allowed_tables:
-        raise HTTPException(
-            status_code=400,
-            detail="Cliente sin schema permitido configurado"
-        )
+   # if not allowed_tables:
+   #    raise HTTPException(
+   #         status_code=400,
+   #         detail="Cliente sin schema permitido configurado"
+   #     )
 
     # Inyectamos schema ya limpio
-    client["allowed_tables"] = allowed_tables
-    client["allowed_columns"] = allowed_columns
+  #  client["allowed_tables"] = allowed_tables
+  # client["allowed_columns"] = allowed_columns
 
     return client
 
@@ -212,6 +213,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
