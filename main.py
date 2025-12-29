@@ -65,9 +65,16 @@ def get_client_config(client_id: str):
                 WHERE client_id = %s AND active = 1
             """, (client_id,))
             client = cur.fetchone()
-
+            
+    # 🔎 DEBUG TEMPORAL (PASO 4)
+    print("CLIENT TYPE:", type(client))
+    print("CLIENT VALUE:", client)
+    
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado o inactivo")
+   
+    return client
+
 
     # ==============================
     # NORMALIZACIÓN DE SCHEMA
@@ -105,7 +112,7 @@ def get_client_config(client_id: str):
   #  client["allowed_tables"] = allowed_tables
   # client["allowed_columns"] = allowed_columns
 
-    return client
+
 
 
 def execute_client_query(client, sql):
@@ -213,6 +220,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
