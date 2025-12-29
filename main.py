@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import MySQLdb
+import pymysql
 import os
 import re
 import json
@@ -26,7 +26,8 @@ def get_control_connection():
         user=CONTROL_DB["user"],
         password=CONTROL_DB["password"],
         database=CONTROL_DB["database"],
-        cursorclass=pymysql.cursors.DictCursor
+        cursorclass=pymysql.cursors.DictCursor,
+        ssl_disabled=True
     )
 
 
@@ -116,12 +117,13 @@ def get_client_config(client_id: str):
 
 
 def execute_client_query(client, sql):
-    conn = MySQLdb.connect(
-        host=client["db_host"],
-        user=client["db_user"],
-        passwd=client["db_password"],
-        db=client["db_name"],
-        charset="utf8mb4"
+    conn = pymysql.connect(
+            host=client["db_host"],
+            user=client["db_user"],
+            password=client["db_password"],
+            database=client["db_name"],
+            cursorclass=pymysql.cursors.Cursor,
+            ssl_disabled=True
     )
 
     cur = conn.cursor(MySQLdb.cursors.DictCursor)
@@ -220,6 +222,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
