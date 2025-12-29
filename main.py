@@ -106,7 +106,8 @@ def execute_client_query(client, sql):
         user=client["db_user"],
         password=client["db_password"],
         database=client["db_name"],
-        cursorclass=pymysql.cursors.DictCursor
+        cursorclass=pymysql.cursors.DictCursor,
+        ssl=False
     )
     with conn:
         with conn.cursor() as cur:
@@ -199,6 +200,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
