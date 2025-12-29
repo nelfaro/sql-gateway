@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import pymysql
+import MySQLdb
 import os
 import re
 import json
@@ -21,7 +21,14 @@ class QueryRequest(BaseModel):
 FORBIDDEN = re.compile(r"(insert|update|delete|drop|alter|truncate|grant|revoke|;)", re.IGNORECASE)
 
 def get_control_connection():
-    return pymysql.connect(**CONTROL_DB, cursorclass=pymysql.cursors.DictCursor)
+    return MySQLdb.connect(
+        host=CONTROL_DB["host"],
+        user=CONTROL_DB["user"],
+        passwd=CONTROL_DB["password"],
+        db=CONTROL_DB["database"],
+        charset="utf8mb4"
+    )
+
 
 def validate_sql(sql: str):
     if FORBIDDEN.search(sql):
@@ -101,27 +108,24 @@ def get_client_config(client_id: str):
 
 
 def execute_client_query(client, sql):
-    conn = pymysql.connect(
+    conn = MySQLdb.connect(
         host=client["db_host"],
         user=client["db_user"],
-        password=client["db_password"],
-        database=client["db_name"],
-        cursorclass=pymysql.cursors.DictCursor,
-
-        # 🔑 CLAVE PARA EASY PANEL + MYSQL 8
-        ssl_disabled=True,
-        auth_plugin_map={
-            "caching_sha2_password": pymysql.constants.CLIENT.PLUGIN_AUTH
-        }
+        passwd=client["db_password"],
+        db=client["db_name"],
+        charset="utf8mb4"
     )
 
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-            rows = cur.fetchall()
-            columns = list(rows[0].keys()) if rows else []
+    cur = conn.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute(sql)
+    rows = cur.fetchall()
+    columns = list(rows[0].keys()) if rows else []
+
+    cur.close()
+    conn.close()
 
     return columns, rows
+
 
 
 def safe_json(value, default):
@@ -208,6 +212,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
