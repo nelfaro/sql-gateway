@@ -189,18 +189,17 @@ def get_schema(client_id: str):
     }
     
 def parse_json_field(value, default):
-    """
-    Parsea campos JSON guardados como string en MySQL.
-    Nunca rompe la ejecución.
-    """
+    if value is None:
+        return default
+
+    if isinstance(value, (list, dict)):
+        return value
+
     try:
-        if value is None:
-            return default
-        if isinstance(value, (dict, list)):
-            return value
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
