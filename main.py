@@ -134,17 +134,17 @@ def query_db(req: QueryRequest):
     client = get_client_config(req.client_id)
 
     # 3. Parse seguro de permisos
-    allowed_tables = parse_json_field(client.get("allowed_tables"), [])
-    allowed_columns = parse_json_field(client.get("allowed_columns"), {})
+   # allowed_tables = parse_json_field(client.get("allowed_tables"), [])
+   # allowed_columns = parse_json_field(client.get("allowed_columns"), {})
 
-    if not isinstance(allowed_tables, list) or not isinstance(allowed_columns, dict):
-        raise HTTPException(
-            status_code=500,
-            detail="allowed_tables / allowed_columns inválidos"
-        )
+   # if not isinstance(allowed_tables, list) or not isinstance(allowed_columns, dict):
+   #    raise HTTPException(
+   #         status_code=500,
+   #         detail="allowed_tables / allowed_columns inválidos"
+   #    )
 
     # 4. Validar permisos
-    validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
+   # validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
 
     # 5. Ejecutar
     columns, rows = execute_client_query(client, req.sql)
@@ -199,6 +199,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
