@@ -118,23 +118,23 @@ def get_client_config(client_id: str):
 
 def execute_client_query(client, sql):
     conn = pymysql.connect(
-            host=client["db_host"],
-            user=client["db_user"],
-            password=client["db_password"],
-            database=client["db_name"],
-            cursorclass=pymysql.cursors.Cursor,
-            ssl_disabled=True
+        host=client["db_host"],
+        user=client["db_user"],
+        password=client["db_password"],
+        database=client["db_name"],
+        cursorclass=pymysql.cursors.DictCursor,
+        ssl_disabled=True
     )
 
-    cur = conn.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute(sql)
-    rows = cur.fetchall()
-    columns = list(rows[0].keys()) if rows else []
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
+            columns = list(rows[0].keys()) if rows else []
+            return columns, rows
+    finally:
+        conn.close()
 
-    cur.close()
-    conn.close()
-
-    return columns, rows
 
 
 
@@ -222,6 +222,7 @@ def parse_json_field(value, default):
         return json.loads(value)
     except Exception:
         return default
+
 
 
 
