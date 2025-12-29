@@ -1,5 +1,7 @@
 fastapi
 uvicorn
-mysqlclient
+pymsql
+sqlparse
 cryptography
 python-dotenv
+
