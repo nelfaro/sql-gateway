@@ -1,12 +1,5 @@
 FROM python:3.11-slim
 
-# 1. Dependencias del sistema (CLAVE)
-RUN apt-get update && apt-get install -y \
-    gcc \
-    pkg-config \
-    default-libmysqlclient-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 # 2. Directorio de trabajo
 WORKDIR /app
 
@@ -24,3 +17,4 @@ EXPOSE 8000
 
 # 7. Arranque
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
