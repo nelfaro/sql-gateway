@@ -27,6 +27,27 @@ def validate_sql(sql: str):
     if FORBIDDEN.search(sql):
         raise HTTPException(status_code=400, detail="SQL no permitido")
 
+def validate_sql_permissions(sql: str, allowed_tables, allowed_columns):
+    sql_lower = sql.lower()
+
+    # Validar tablas
+    for table in allowed_tables:
+        if table.lower() not in sql_lower:
+            continue
+
+    # Extraer columnas usadas (heurística simple)
+    for table, columns in allowed_columns.items():
+        for col in columns:
+            if col.lower() in sql_lower:
+                return
+
+    # Si no pasó ninguna validación
+    raise HTTPException(
+        status_code=403,
+        detail="Consulta fuera de las tablas/columnas permitidas"
+    )
+
+
 def get_client_config(client_id: str):
     with get_control_connection() as conn:
         with conn.cursor() as cur:
@@ -106,10 +127,33 @@ def safe_json(value, default):
 
 @app.post("/query")
 def query_db(req: QueryRequest):
+    # 1. SQL básica
     validate_sql(req.sql)
+
+    # 2. Config cliente
     client = get_client_config(req.client_id)
+
+    # 3. Parse seguro de permisos
+    allowed_tables = parse_json_field(client.get("allowed_tables"), [])
+    allowed_columns = parse_json_field(client.get("allowed_columns"), {})
+
+    if not isinstance(allowed_tables, list) or not isinstance(allowed_columns, dict):
+        raise HTTPException(
+            status_code=500,
+            detail="allowed_tables / allowed_columns inválidos"
+        )
+
+    # 4. Validar permisos
+    validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
+
+    # 5. Ejecutar
     columns, rows = execute_client_query(client, req.sql)
-    return {"columns": columns, "rows": rows, "row_count": len(rows)}
+
+    return {
+        "columns": columns,
+        "rows": rows,
+        "row_count": len(rows)
+    }
 
 
 class SchemaResponse(BaseModel):
@@ -143,6 +187,21 @@ def get_schema(client_id: str):
         "tables": tables,
         "columns": columns
     }
+    
+def parse_json_field(value, default):
+    """
+    Parsea campos JSON guardados como string en MySQL.
+    Nunca rompe la ejecución.
+    """
+    try:
+        if value is None:
+            return default
+        if isinstance(value, (dict, list)):
+            return value
+        return json.loads(value)
+    except Exception:
+        return default
+
 
 
 
