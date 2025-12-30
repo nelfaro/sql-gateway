@@ -90,6 +90,15 @@ def parse_json_field(value, default):
     except Exception:
         return default
 
+def normalize_column(col: str) -> str:
+    col = col.strip()
+    # Quitar alias
+    col = col.split(" as ")[0].split(" AS ")[0]
+    # Quitar funciones SQL (SUM(col), etc)
+    match = re.search(r"\((.*?)\)", col)
+    if match:
+        col = match.group(1)
+    return col.strip()
 
 def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: dict):
     tables_in_sql = re.findall(r"from\s+([a-zA-Z0-9_]+)", sql, re.IGNORECASE)
@@ -109,7 +118,7 @@ def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: di
     if raw_cols.strip() == "*":
         return
 
-    cols = [c.strip().split(" ")[0] for c in raw_cols.split(",")]
+    cols = [normalize_column(c) for c in raw_cols.split(",")]
 
     for col in cols:
         allowed = any(col in allowed_columns.get(t, []) for t in allowed_tables)
@@ -118,6 +127,8 @@ def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: di
                 status_code=403,
                 detail=f"Column '{col}' is not allowed",
             )
+
+
 
 
 # =========================
@@ -187,6 +198,7 @@ def query_db(req: QueryRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 
 
