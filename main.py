@@ -134,6 +134,7 @@ def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: di
 # =========================
 # Ejecutar query cliente
 # =========================
+print(">>> USING ssl_disabled=True <<<")
 
 def execute_client_query(client: dict, sql: str):
     conn = pymysql.connect(
@@ -143,8 +144,12 @@ def execute_client_query(client: dict, sql: str):
         password=client["db_password"],
         database=client["db_name"],
         cursorclass=pymysql.cursors.DictCursor,
-        ssl_disabled=True,
+        ssl={
+        "check_hostname": False,
+        "cert_reqs": None
+    }
     )
+print(">>> CONNECT PARAMS:", client["db_host"], client["db_user"])
 
     try:
         with conn.cursor() as cur:
@@ -198,6 +203,7 @@ def query_db(req: QueryRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 
 
