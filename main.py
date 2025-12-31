@@ -39,7 +39,7 @@ def get_control_connection():
         password=CONTROL_DB_PASSWORD,
         database=CONTROL_DB_NAME,
         cursorclass=pymysql.cursors.DictCursor,
-        ssl_disabled=True,
+        ssl_disabled=True
     )
 
 
@@ -144,10 +144,7 @@ def execute_client_query(client: dict, sql: str):
         password=client["db_password"],
         database=client["db_name"],
         cursorclass=pymysql.cursors.DictCursor,
-        ssl={
-        "check_hostname": False,
-        "cert_reqs": None
-    }
+        ssl_disabled=True
     )
     print(">>> CONNECT PARAMS:", client["db_host"], client["db_user"])
 
@@ -203,6 +200,7 @@ def query_db(req: QueryRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 
 
