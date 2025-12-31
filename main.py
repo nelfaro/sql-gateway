@@ -149,7 +149,7 @@ def execute_client_query(client: dict, sql: str):
         "cert_reqs": None
     }
     )
-print(">>> CONNECT PARAMS:", client["db_host"], client["db_user"])
+    print(">>> CONNECT PARAMS:", client["db_host"], client["db_user"])
 
     try:
         with conn.cursor() as cur:
@@ -203,6 +203,7 @@ def query_db(req: QueryRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 
 
