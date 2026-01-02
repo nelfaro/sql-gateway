@@ -54,6 +54,28 @@ def validate_sql_basic(sql: str):
     if any(word in sql_clean for word in forbidden):
         raise HTTPException(status_code=403, detail="Forbidden SQL operation")
 
+def execute_client_query(sql: str):
+    conn = pymysql.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
+        port=int(os.getenv("DB_PORT", 3306)),
+        ssl_disabled=True,
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            return columns, rows
+    finally:
+        conn.close()
+
+
+
 def extract_tables(sql: str):
     return re.findall(r'from\s+([a-zA-Z0-9_]+)', sql, re.IGNORECASE)
 
@@ -101,22 +123,17 @@ def validate_permissions(sql: str):
 @app.post("/query")
 def query_db(req: QueryRequest):
 
-    # 1. Validación básica
     validate_sql(req.sql)
 
-    # 2. (opcional) log
     print("SQL:", req.sql)
 
-    # 3. Permisos HARDcodeados (MVP single-client)
     allowed_tables = ["stores_fact"]
     allowed_columns = {
         "stores_fact": ["state", "sales_m", "gross_profit"]
     }
 
-    # 4. Validar permisos
     validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
 
-    # 5. Ejecutar query
     columns, rows = execute_client_query(req.sql)
 
     return {
@@ -124,6 +141,8 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
+
 
 
 
