@@ -126,6 +126,4 @@ def query_db(req: QueryRequest):
     }
 
 
-    except pymysql.MySQLError as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
