@@ -1,221 +1,120 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import pymysql
+import os
 import json
 import re
-import os
+import pymysql
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
-app = FastAPI(title="SQL Gateway MVP")
-
-# =========================
-# Configuración CONTROL DB
-# =========================
-
-CONTROL_DB_HOST = os.getenv("CONTROL_DB_HOST", "mysql-control")
-CONTROL_DB_PORT = int(os.getenv("CONTROL_DB_PORT", 3306))
-CONTROL_DB_USER = os.getenv("CONTROL_DB_USER", "control_user")
-CONTROL_DB_PASSWORD = os.getenv("CONTROL_DB_PASSWORD", "root")
-CONTROL_DB_NAME = os.getenv("CONTROL_DB_NAME", "control_db")
-
+app = FastAPI(title="SQL Agent Gateway")
 
 # =========================
-# Models
+# CONFIGURACIÓN (ENV)
+# =========================
+
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+DB_SSL_DISABLED = os.getenv("DB_SSL_DISABLED", "false").lower() == "true"
+
+ALLOWED_TABLES = json.loads(os.getenv("ALLOWED_TABLES", "[]"))
+ALLOWED_COLUMNS = json.loads(os.getenv("ALLOWED_COLUMNS", "{}"))
+
+# =========================
+# MODELOS
 # =========================
 
 class QueryRequest(BaseModel):
-    client_id: str
     sql: str
 
-
 # =========================
-# Helpers DB
+# HELPERS
 # =========================
 
-def get_control_connection():
+def get_connection():
     return pymysql.connect(
-        host=CONTROL_DB_HOST,
-        port=CONTROL_DB_PORT,
-        user=CONTROL_DB_USER,
-        password=CONTROL_DB_PASSWORD,
-        database=CONTROL_DB_NAME,
-        cursorclass=pymysql.cursors.DictCursor,
-        ssl_disabled=True
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.Cursor,
+        ssl_disabled=DB_SSL_DISABLED
     )
 
+def validate_sql_basic(sql: str):
+    sql_clean = sql.strip().lower()
 
-def get_client_config(client_id: str) -> dict:
-    with get_control_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT *
-                FROM clients
-                WHERE client_id = %s AND active = 1
-                """,
-                (client_id,),
-            )
-            client = cur.fetchone()
+    if not sql_clean.startswith("select"):
+        raise HTTPException(status_code=403, detail="Only SELECT queries are allowed")
 
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found or inactive")
+    forbidden = ["insert", "update", "delete", "drop", "alter", "truncate"]
+    if any(word in sql_clean for word in forbidden):
+        raise HTTPException(status_code=403, detail="Forbidden SQL operation")
 
-    return client
+def extract_tables(sql: str):
+    return re.findall(r'from\s+([a-zA-Z0-9_]+)', sql, re.IGNORECASE)
 
+def extract_columns(sql: str):
+    """
+    Extrae columnas reales aunque estén dentro de funciones:
+    SUM(sales_m) -> sales_m
+    """
+    select_part = re.split(r'from', sql, flags=re.IGNORECASE)[0]
+    cols = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', select_part)
 
-# =========================
-# Seguridad SQL
-# =========================
+    ignore = {
+        "select", "sum", "avg", "min", "max", "count",
+        "as", "distinct"
+    }
 
-FORBIDDEN_SQL = re.compile(
-    r"\b(insert|update|delete|drop|alter|truncate|create|replace)\b",
-    re.IGNORECASE,
-)
+    return [c for c in cols if c.lower() not in ignore]
 
+def validate_permissions(sql: str):
+    tables = extract_tables(sql)
+    columns = extract_columns(sql)
 
-def validate_sql(sql: str):
-    if FORBIDDEN_SQL.search(sql):
-        raise HTTPException(
-            status_code=400,
-            detail="Only SELECT queries are allowed",
-        )
-
-
-def parse_json_field(value, default):
-    if value is None:
-        return default
-    if isinstance(value, (list, dict)):
-        return value
-    try:
-        return json.loads(value)
-    except Exception:
-        return default
-
-def normalize_column(col: str) -> str:
-    col = col.strip()
-    # Quitar alias
-    col = col.split(" as ")[0].split(" AS ")[0]
-    # Quitar funciones SQL (SUM(col), etc)
-    match = re.search(r"\((.*?)\)", col)
-    if match:
-        col = match.group(1)
-    return col.strip()
-
-def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: dict):
-    tables_in_sql = re.findall(r"from\s+([a-zA-Z0-9_]+)", sql, re.IGNORECASE)
-
-    for table in tables_in_sql:
-        if table not in allowed_tables:
+    for table in tables:
+        if table not in ALLOWED_TABLES:
             raise HTTPException(
                 status_code=403,
-                detail=f"Table '{table}' is not allowed",
+                detail=f"Table '{table}' is not allowed"
             )
 
-    columns_in_sql = re.findall(r"select\s+(.*?)\s+from", sql, re.IGNORECASE)
-    if not columns_in_sql:
-        return
-
-    raw_cols = columns_in_sql[0]
-    if raw_cols.strip() == "*":
-        return
-
-    cols = [normalize_column(c) for c in raw_cols.split(",")]
-
-    for col in cols:
-        allowed = any(col in allowed_columns.get(t, []) for t in allowed_tables)
+    for col in columns:
+        allowed = False
+        for table, cols in ALLOWED_COLUMNS.items():
+            if col in cols:
+                allowed = True
         if not allowed:
             raise HTTPException(
                 status_code=403,
-                detail=f"Column '{col}' is not allowed",
+                detail=f"Column '{col}' is not allowed"
             )
 
-
-
-
 # =========================
-# Ejecutar query cliente
-# =========================
-print(">>> USING ssl_disabled=True <<<")
-
-def execute_client_query(client: dict, sql: str):
-    conn = pymysql.connect(
-        host=client["db_host"],
-        port=client.get("db_port", 3306),
-        user=client["db_user"],
-        password=client["db_password"],
-        database=client["db_name"],
-        cursorclass=pymysql.cursors.DictCursor,
-        ssl_disabled=True
-    )
-    print(">>> CONNECT PARAMS:", client["db_host"], client["db_user"])
-
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-            rows = cur.fetchall()
-            columns = list(rows[0].keys()) if rows else []
-            return columns, rows
-    finally:
-        conn.close()
-
-
-# =========================
-# Endpoint principal
+# ENDPOINT
 # =========================
 
 @app.post("/query")
 def query_db(req: QueryRequest):
-    # 1. Validar SQL básica
-    validate_sql(req.sql)
+    validate_sql_basic(req.sql)
+    validate_permissions(req.sql)
 
-    # 2. Obtener config cliente
-    client = get_client_config(req.client_id)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(req.sql)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
 
-    # 3. Parse permisos
-    allowed_tables = parse_json_field(client.get("allowed_tables"), [])
-    allowed_columns = parse_json_field(client.get("allowed_columns"), {})
+        return {
+            "columns": columns,
+            "rows": rows,
+            "row_count": len(rows)
+        }
 
-    if not isinstance(allowed_tables, list) or not isinstance(allowed_columns, dict):
-        raise HTTPException(
-            status_code=500,
-            detail="Invalid permissions configuration",
-        )
-
-    # 4. Validar permisos
-    validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
-
-    # 5. Ejecutar query
-    columns, rows = execute_client_query(client, req.sql)
-
-    return {
-        "columns": columns,
-        "rows": rows,
-        "row_count": len(rows),
-    }
-
-
-# =========================
-# Healthcheck
-# =========================
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=str(e))
