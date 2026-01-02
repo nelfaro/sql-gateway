@@ -94,7 +94,7 @@ def extract_columns(sql: str):
 
     return [c for c in cols if c.lower() not in ignore]
 
-def validate_permissions(sql: str):
+def validate_sql_permissions(sql: str):
     tables = extract_tables(sql)
     columns = extract_columns(sql)
 
@@ -141,6 +141,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
