@@ -44,7 +44,7 @@ def get_connection():
         ssl_disabled=DB_SSL_DISABLED
     )
 
-def validate_sql_basic(sql: str):
+def validate_sql(sql: str):
     sql_clean = sql.strip().lower()
 
     if not sql_clean.startswith("select"):
@@ -141,6 +141,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
