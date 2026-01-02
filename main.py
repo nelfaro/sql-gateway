@@ -100,21 +100,32 @@ def validate_permissions(sql: str):
 
 @app.post("/query")
 def query_db(req: QueryRequest):
-    validate_sql_basic(req.sql)
-    validate_permissions(req.sql)
 
-    try:
-        with get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(req.sql)
-                rows = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
+    # 1. Validación básica
+    validate_sql(req.sql)
 
-        return {
-            "columns": columns,
-            "rows": rows,
-            "row_count": len(rows)
-        }
+    # 2. (opcional) log
+    print("SQL:", req.sql)
+
+    # 3. Permisos HARDcodeados (MVP single-client)
+    allowed_tables = ["stores_fact"]
+    allowed_columns = {
+        "stores_fact": ["state", "sales_m", "gross_profit"]
+    }
+
+    # 4. Validar permisos
+    validate_sql_permissions(req.sql, allowed_tables, allowed_columns)
+
+    # 5. Ejecutar query
+    columns, rows = execute_client_query(req.sql)
+
+    return {
+        "columns": columns,
+        "rows": rows,
+        "row_count": len(rows)
+    }
+
 
     except pymysql.MySQLError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
