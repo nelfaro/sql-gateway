@@ -94,37 +94,38 @@ def extract_columns(sql: str):
 
     return [c for c in cols if c.lower() not in ignore]
 
+SQL_KEYWORDS = {
+    "select", "from", "where", "group", "by", "order",
+    "limit", "as", "sum", "avg", "min", "max", "count"
+}
+
 def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: dict):
     sql_lower = sql.lower()
 
     # 1. Validar tablas
-    tables_in_query = re.findall(r'from\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
-    tables_in_query += re.findall(r'join\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    tables = re.findall(r'\bfrom\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    tables += re.findall(r'\bjoin\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
 
-    for table in tables_in_query:
+    for table in tables:
         if table not in allowed_tables:
             raise HTTPException(
                 status_code=403,
                 detail=f"Table '{table}' is not allowed"
             )
 
-    # 2. Validar columnas (incluye funciones como SUM(col))
-    columns_in_query = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    # 2. Extraer columnas reales (incluye funciones)
+    raw_columns = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_lower)
 
-    for table, cols in allowed_columns.items():
-        for col in cols:
-            columns_in_query = [c.replace(col, "") for c in columns_in_query]
+    for col in raw_columns:
+        if col in SQL_KEYWORDS:
+            continue
 
-    forbidden_columns = [
-        c for c in columns_in_query
-        if c not in ["select", "from", "where", "group", "by", "sum", "as", "limit", "join", "on"]
-    ]
-
-    if forbidden_columns:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Column '{forbidden_columns[0]}' is not allowed"
-        )
+        # verificar si la columna está permitida en alguna tabla
+        if not any(col in cols for cols in allowed_columns.values()):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Column '{col}' is not allowed"
+            )
 
 # =========================
 # ENDPOINT
@@ -151,6 +152,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
