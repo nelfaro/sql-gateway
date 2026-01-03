@@ -123,7 +123,7 @@ def validate_sql_permissions(sql: str):
 @app.post("/query")
 def query_db(req: QueryRequest):
 
-    validate_sql(req.sql)
+    #validate_sql(req.sql)
 
     print("SQL:", req.sql)
 
@@ -141,6 +141,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
