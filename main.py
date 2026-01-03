@@ -113,18 +113,23 @@ def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: di
                 detail=f"Table '{table}' is not allowed"
             )
 
-    # 2. Extraer columnas reales (incluye funciones)
-    raw_columns = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_lower)
+    # 2. Detectar aliases (AS alias)
+    aliases = set(re.findall(r'\bas\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower))
 
-    for col in raw_columns:
-        if col in SQL_KEYWORDS:
+    # 3. Extraer tokens tipo columna
+    tokens = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_lower)
+
+    for token in tokens:
+        if token in SQL_KEYWORDS:
             continue
 
-        # verificar si la columna está permitida en alguna tabla
-        if not any(col in cols for cols in allowed_columns.values()):
+        if token in aliases:
+            continue  # 👈 alias permitido
+
+        if not any(token in cols for cols in allowed_columns.values()):
             raise HTTPException(
                 status_code=403,
-                detail=f"Column '{col}' is not allowed"
+                detail=f"Column '{token}' is not allowed"
             )
 
 # =========================
@@ -152,6 +157,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
