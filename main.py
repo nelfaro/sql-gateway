@@ -75,17 +75,33 @@ def extract_tables(sql: str) -> set:
 def extract_columns(sql: str) -> set:
     """
     Extrae columnas reales ignorando:
-    - funciones (SUM, AVG, etc.)
+    - funciones
     - aliases
+    - nombres de tabla
     """
-    sql = re.sub(r'\([^)]*\)', '', sql)  # elimina contenido de funciones
-    tokens = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', sql)
+    tables = extract_tables(sql)
+
+    # elimina contenido de funciones
+    sql_clean = re.sub(r'\([^)]*\)', '', sql)
+
+    tokens = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', sql_clean)
+
     blacklist = {
         "select", "from", "where", "group", "by",
         "order", "limit", "as", "and", "or"
     } | set(AGG_FUNCTIONS)
 
-    return {t.lower() for t in tokens if t.lower() not in blacklist}
+    columns = set()
+
+    for t in tokens:
+        tl = t.lower()
+        if tl in blacklist:
+            continue
+        if tl in tables:
+            continue  # 👈 CLAVE: excluye nombres de tabla
+        columns.add(tl)
+
+    return columns
 
 def validate_sql_permissions(sql: str):
     tables = extract_tables(sql)
@@ -156,6 +172,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
