@@ -99,12 +99,13 @@ SQL_KEYWORDS = {
     "limit", "as", "sum", "avg", "min", "max", "count"
 }
 
-def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: dict):
+
+def validate_sql_permissions(sql: str, allowed_tables, allowed_columns):
     sql_lower = sql.lower()
 
-    # 1. Validar tablas
-    tables = re.findall(r'\bfrom\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
-    tables += re.findall(r'\bjoin\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    # --- TABLAS ---
+    tables = re.findall(r'from\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    tables += re.findall(r'join\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
 
     for table in tables:
         if table not in allowed_tables:
@@ -113,23 +114,32 @@ def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: di
                 detail=f"Table '{table}' is not allowed"
             )
 
-    # 2. Detectar aliases (AS alias)
-    aliases = set(re.findall(r'\bas\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower))
+    # --- COLUMNAS ---
+    select_part = sql_lower.split("from")[0]
+    raw_columns = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', select_part)
 
-    # 3. Extraer tokens tipo columna
-    tokens = re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql_lower)
-
-    for token in tokens:
-        if token in SQL_KEYWORDS:
+    cleaned_columns = []
+    for col in raw_columns:
+        if col in SQL_KEYWORDS:
             continue
+        if col == "as":
+            continue
+        cleaned_columns.append(col)
 
-        if token in aliases:
-            continue  # 👈 alias permitido
+    for col in cleaned_columns:
+        if col in allowed_tables:
+            continue  # evita falso positivo con nombre de tabla
 
-        if not any(token in cols for cols in allowed_columns.values()):
+        allowed = False
+        for table, cols in allowed_columns.items():
+            if col in cols:
+                allowed = True
+                break
+
+        if not allowed:
             raise HTTPException(
                 status_code=403,
-                detail=f"Column '{token}' is not allowed"
+                detail=f"Column '{col}' is not allowed"
             )
 
 # =========================
@@ -157,6 +167,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
