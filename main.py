@@ -94,27 +94,37 @@ def extract_columns(sql: str):
 
     return [c for c in cols if c.lower() not in ignore]
 
-def validate_sql_permissions(sql: str):
-    tables = extract_tables(sql)
-    columns = extract_columns(sql)
+def validate_sql_permissions(sql: str, allowed_tables: list, allowed_columns: dict):
+    sql_lower = sql.lower()
 
-    for table in tables:
-        if table not in ALLOWED_TABLES:
+    # 1. Validar tablas
+    tables_in_query = re.findall(r'from\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+    tables_in_query += re.findall(r'join\s+([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+
+    for table in tables_in_query:
+        if table not in allowed_tables:
             raise HTTPException(
                 status_code=403,
                 detail=f"Table '{table}' is not allowed"
             )
 
-    for col in columns:
-        allowed = False
-        for table, cols in ALLOWED_COLUMNS.items():
-            if col in cols:
-                allowed = True
-        if not allowed:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Column '{col}' is not allowed"
-            )
+    # 2. Validar columnas (incluye funciones como SUM(col))
+    columns_in_query = re.findall(r'([a-zA-Z_][a-zA-Z0-9_]*)', sql_lower)
+
+    for table, cols in allowed_columns.items():
+        for col in cols:
+            columns_in_query = [c.replace(col, "") for c in columns_in_query]
+
+    forbidden_columns = [
+        c for c in columns_in_query
+        if c not in ["select", "from", "where", "group", "by", "sum", "as", "limit", "join", "on"]
+    ]
+
+    if forbidden_columns:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Column '{forbidden_columns[0]}' is not allowed"
+        )
 
 # =========================
 # ENDPOINT
@@ -141,6 +151,7 @@ def query_db(req: QueryRequest):
         "rows": rows,
         "row_count": len(rows)
     }
+
 
 
 
